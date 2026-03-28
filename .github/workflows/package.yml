@@ -33,6 +33,11 @@ jobs:
         if: runner.os != 'Windows'
         run: chmod +x gradlew
 
+      - name: Install WiX (Windows only)
+        if: runner.os == 'Windows'
+        run: choco install wixtoolset
+        shell: pwsh
+
       - name: Build Distributions
         run: |
           if [ "${{ runner.os }}" == "Windows" ]; then
