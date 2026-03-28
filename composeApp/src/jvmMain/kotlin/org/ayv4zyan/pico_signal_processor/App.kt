@@ -11,8 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,27 +25,29 @@ import java.awt.Desktop
 import androidx.compose.foundation.isSystemInDarkTheme
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF80DEEA),
-    secondary = Color(0xFFB2EBF2),
-    tertiary = Color(0xFF4DD0E1),
-    background = Color(0xFF121212),
-    surface = Color(0xFF1E1E1E),
-    onPrimary = Color(0xFF00363A),
-    onSecondary = Color(0xFF00363A),
-    onBackground = Color(0xFFE1E3E1),
-    onSurface = Color(0xFFE1E3E1)
+    primary = Color(0xFFD0BCFF),
+    secondary = Color(0xFFCCC2DC),
+    tertiary = Color(0xFFEFB8C8),
+    background = Color(0xFF1C1B1F),
+    surface = Color(0xFF1C1B1F),
+    onPrimary = Color(0xFF381E72),
+    onSecondary = Color(0xFF332D41),
+    onTertiary = Color(0xFF492532),
+    onBackground = Color(0xFFE6E1E5),
+    onSurface = Color(0xFFE6E1E5)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF006064),
-    secondary = Color(0xFF00838F),
-    tertiary = Color(0xFF0097A7),
-    background = Color(0xFFF8FDFF),
-    surface = Color(0xFFFFFFFF),
+    primary = Color(0xFF6750A4),
+    secondary = Color(0xFF625B71),
+    tertiary = Color(0xFF7D5260),
+    background = Color(0xFFFFFBFE),
+    surface = Color(0xFFFFFBFE),
     onPrimary = Color(0xFFFFFFFF),
     onSecondary = Color(0xFFFFFFFF),
-    onBackground = Color(0xFF191C1C),
-    onSurface = Color(0xFF191C1C)
+    onTertiary = Color(0xFFFFFFFF),
+    onBackground = Color(0xFF1C1B1F),
+    onSurface = Color(0xFF1C1B1F)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -387,7 +388,15 @@ fun SettingsScreen(viewModel: MainViewModel) {
                             label = { 
                                 Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) 
                             },
-                            leadingIcon = if (themeMode == mode) {
+                            leadingIcon = {
+                                val icon = when(mode) {
+                                    ThemeMode.SYSTEM -> Icons.Default.SettingsBrightness
+                                    ThemeMode.LIGHT -> Icons.Default.LightMode
+                                    ThemeMode.DARK -> Icons.Default.DarkMode
+                                }
+                                Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+                            },
+                            trailingIcon = if (themeMode == mode) {
                                 { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
                             } else null
                         )
