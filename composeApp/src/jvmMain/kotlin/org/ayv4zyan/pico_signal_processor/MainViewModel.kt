@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.prefs.Preferences
 
 enum class Screen { HOME, SETTINGS }
 
@@ -13,6 +14,14 @@ enum class ProcessingState { IDLE, PROCESSING, SUCCESS }
 
 class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) {
     private val scope = CoroutineScope(Dispatchers.Main)
+
+    private val prefs = Preferences.userNodeForPackage(MainViewModel::class.java)
+    private val KEY_DIR = "selected_directory"
+    private val KEY_OUT_DIR = "custom_output_directory"
+    private val KEY_SUFFIX = "output_suffix"
+    private val KEY_OP = "operation"
+    private val KEY_PRECISION_TYPE = "precision_type" // 0 = Exact, 1 = Decimals
+    private val KEY_PRECISION_VAL = "precision_val"
 
     private val _currentScreen = MutableStateFlow(Screen.HOME)
     val currentScreen = _currentScreen.asStateFlow()
@@ -44,32 +53,71 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
     // holds the final path for opening it
     var lastSuccessDirectory: File? = null
 
+    init {
+        loadPreferences()
+    }
+
+    private fun loadPreferences() {
+        prefs.get(KEY_DIR, null)?.let { _selectedDirectory.value = File(it) }
+        prefs.get(KEY_OUT_DIR, null)?.let { _customOutputDirectory.value = File(it) }
+        _outputFolderSuffix.value = prefs.get(KEY_SUFFIX, "PSP_Output")
+        
+        val opName = prefs.get(KEY_OP, SignalOperation.MAX.name)
+        _operation.value = try { SignalOperation.valueOf(opName) } catch (e: Exception) { SignalOperation.MAX }
+
+        val pType = prefs.getInt(KEY_PRECISION_TYPE, 0)
+        _precision.value = if (pType == 0) {
+            Precision.Exact
+        } else {
+            val places = prefs.getInt(KEY_PRECISION_VAL, 2)
+            Precision.Decimals(places)
+        }
+    }
+
     fun navigateTo(screen: Screen) {
         _currentScreen.value = screen
     }
 
     fun selectDirectory(dir: File) {
         _selectedDirectory.value = dir
+        prefs.put(KEY_DIR, dir.absolutePath)
         _processingState.value = ProcessingState.IDLE
         log("Selected input directory: ${dir.absolutePath}")
     }
 
     fun selectOutputDirectory(dir: File) {
         _customOutputDirectory.value = dir
+        prefs.put(KEY_OUT_DIR, dir.absolutePath)
+        _processingState.value = ProcessingState.IDLE
         log("Selected output directory: ${dir.absolutePath}")
     }
     
     fun setOutputSuffix(suffix: String) {
         _outputFolderSuffix.value = suffix
+        prefs.put(KEY_SUFFIX, suffix)
+        _processingState.value = ProcessingState.IDLE
     }
 
     fun setOperation(op: SignalOperation) {
         _operation.value = op
+        prefs.put(KEY_OP, op.name)
+        _processingState.value = ProcessingState.IDLE
         log("Operation set to: $op")
     }
 
     fun setPrecision(p: Precision) {
         _precision.value = p
+        when (p) {
+            is Precision.Exact -> {
+                prefs.putInt(KEY_PRECISION_TYPE, 0)
+            }
+            is Precision.Decimals -> {
+                prefs.putInt(KEY_PRECISION_TYPE, 1)
+                prefs.putInt(KEY_PRECISION_VAL, p.places)
+            }
+        }
+        _processingState.value = ProcessingState.IDLE
+        
         val label = when (p) {
             is Precision.Exact -> "Exact"
             is Precision.Decimals -> "${p.places} Decimals"
