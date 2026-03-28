@@ -49,6 +49,14 @@ compose.desktop {
                 packageName = "pico-signal-processor"
                 debMaintainer = "ayv4zyan@example.com"
             }
+
+            windows {
+                menu = true
+                shortcut = true
+                // Fixed UUID for clean upgrades/uninstalls
+                upgradeUuid = "40B513E0-EB45-4D04-8E8C-8F8D69634C24"
+                menuGroup = "ayv4zyan"
+            }
         }
     }
 }
