@@ -10,7 +10,7 @@ fun main() {
             onCloseRequest = ::exitApplication,
             title = "PicoSignalProcessor",
         ) {
-            App()
+            App(window = window)
         }
     }
 }

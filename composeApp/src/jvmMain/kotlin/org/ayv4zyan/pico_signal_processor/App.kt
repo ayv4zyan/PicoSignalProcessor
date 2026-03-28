@@ -26,6 +26,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.ExperimentalComposeUiApi
 import java.net.URI
+import java.awt.dnd.*
+import java.awt.datatransfer.DataFlavor
+import androidx.compose.ui.awt.ComposeWindow
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import java.awt.Cursor
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.draganddrop.*
 
 private val DarkColorScheme = darkColorScheme(
     primary = Color(0xFFD0BCFF),
@@ -56,7 +64,10 @@ private val LightColorScheme = lightColorScheme(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 @Preview
-fun App(viewModel: MainViewModel = remember { MainViewModel() }) {
+fun App(
+    viewModel: MainViewModel = remember { MainViewModel() },
+    window: ComposeWindow? = null
+) {
     val currentScreen by viewModel.currentScreen.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     
@@ -110,7 +121,7 @@ fun App(viewModel: MainViewModel = remember { MainViewModel() }) {
                     }
                 ) { screen ->
                     when (screen) {
-                        Screen.HOME -> HomeScreen(viewModel)
+                        Screen.HOME -> HomeScreen(viewModel, window)
                         Screen.SETTINGS -> SettingsScreen(viewModel)
                     }
                 }
@@ -121,7 +132,7 @@ fun App(viewModel: MainViewModel = remember { MainViewModel() }) {
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun HomeScreen(viewModel: MainViewModel) {
+fun HomeScreen(viewModel: MainViewModel, window: ComposeWindow?) {
     val selectedDir by viewModel.selectedDirectory.collectAsState()
     val customOutputDir by viewModel.customOutputDirectory.collectAsState()
     val processingState by viewModel.processingState.collectAsState()
@@ -131,56 +142,136 @@ fun HomeScreen(viewModel: MainViewModel) {
     val isLogExpanded by viewModel.isLogExpanded.collectAsState()
     val suffix by viewModel.outputFolderSuffix.collectAsState()
 
+    // macOS Compose Desktop renders through a Skiko/Metal child component that sits
+    // above contentPane. We must attach the DropTarget to ALL components recursively
+    // to guarantee the OS delivers drag events regardless of which layer is on top.
+    LaunchedEffect(window) {
+        val target = object : DropTarget() {
+            override fun dragEnter(dtde: DropTargetDragEvent) {
+                dtde.acceptDrag(DnDConstants.ACTION_COPY)
+                viewModel.setDragging(true)
+            }
+            override fun dragOver(dtde: DropTargetDragEvent) {
+                dtde.acceptDrag(DnDConstants.ACTION_COPY)
+            }
+            override fun dragExit(dte: DropTargetEvent) {
+                viewModel.setDragging(false)
+            }
+            override fun dropActionChanged(dtde: DropTargetDragEvent) {
+                dtde.acceptDrag(DnDConstants.ACTION_COPY)
+            }
+            @Synchronized
+            override fun drop(dtde: DropTargetDropEvent) {
+                try {
+                    dtde.acceptDrop(DnDConstants.ACTION_COPY)
+                    val transferable = dtde.transferable
+                    if (transferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+                        @Suppress("UNCHECKED_CAST")
+                        val files = transferable.getTransferData(DataFlavor.javaFileListFlavor) as? List<File>
+                        val dir = files?.firstOrNull { it.isDirectory }
+                        if (dir != null) {
+                            viewModel.selectDirectory(dir)
+                            dtde.dropComplete(true)
+                            viewModel.setDragging(false)
+                            return
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                viewModel.setDragging(false)
+                dtde.dropComplete(false)
+            }
+        }
+
+        // Recursively attach to every AWT component in the window hierarchy.
+        // This covers the ComposeWindow, its contentPane, and the Skiko rendering layer.
+        fun java.awt.Component.attachDropTargetRecursively(dt: DropTarget) {
+            dropTarget = dt
+            if (this is java.awt.Container) {
+                components.forEach { it.attachDropTargetRecursively(dt) }
+            }
+        }
+
+        window?.attachDropTargetRecursively(target)
+
+        // Also listen for new components being added (e.g. Skiko layer added after init)
+        window?.addContainerListener(object : java.awt.event.ContainerAdapter() {
+            override fun componentAdded(e: java.awt.event.ContainerEvent) {
+                e.child.attachDropTargetRecursively(target)
+            }
+        })
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Section 1: Drop Zone (Input)
-        ElevatedCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .clickable {
-                    val picked = openDirectoryPicker(selectedDir)
-                    if (picked != null) viewModel.selectDirectory(picked)
-                }
-                .border(
-                    BorderStroke(
-                        2.dp,
-                        if (isDragging) MaterialTheme.colorScheme.primary else Color.Transparent
-                    ),
-                    RoundedCornerShape(16.dp)
-                ),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        if (selectedDir != null) Icons.Default.FolderZip else Icons.Default.FileUpload,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = if (isDragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Text(
-                        text = selectedDir?.name ?: "Drop folder here or click to browse",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    if (selectedDir != null) {
-                        Text(
-                            text = selectedDir?.absolutePath ?: "",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 24.dp)
-                        )
+        // Section 1: Drop Zone (Input Hub)
+        Box(modifier = Modifier.fillMaxWidth()) {
+            ElevatedCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .clickable {
+                        val picked = openDirectoryPicker(selectedDir)
+                        if (picked != null) viewModel.selectDirectory(picked)
                     }
+                    .border(
+                        BorderStroke(
+                            2.dp,
+                            if (isDragging) MaterialTheme.colorScheme.primary else Color.Transparent
+                        ),
+                        RoundedCornerShape(16.dp)
+                    ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            if (selectedDir != null) Icons.Default.FolderZip else Icons.Default.FileUpload,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = if (isDragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            text = selectedDir?.name ?: "Drop folder here or click to browse",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        if (selectedDir != null) {
+                            Text(
+                                text = selectedDir?.absolutePath ?: "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 24.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Clear Button (Standard UI pattern for clearable selection)
+            if (selectedDir != null && processingState == ProcessingState.IDLE) {
+                IconButton(
+                    onClick = { viewModel.selectDirectory(null) },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .pointerHoverIcon(PointerIcon(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)))
+                ) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Clear selection",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }

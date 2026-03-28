@@ -98,11 +98,15 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
         prefs.put(KEY_THEME, mode.name)
     }
 
-    fun selectDirectory(dir: File) {
+    fun selectDirectory(dir: File?) {
         _selectedDirectory.value = dir
-        prefs.put(KEY_DIR, dir.absolutePath)
+        if (dir != null) {
+            prefs.put(KEY_DIR, dir.absolutePath)
+        } else {
+            prefs.remove(KEY_DIR)
+        }
         _processingState.value = ProcessingState.IDLE
-        log("Selected input directory: ${dir.absolutePath}")
+        log(if (dir != null) "Selected input directory: ${dir.absolutePath}" else "Input directory cleared")
     }
 
     fun selectOutputDirectory(dir: File) {
