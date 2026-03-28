@@ -23,14 +23,49 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import java.awt.Desktop
+import androidx.compose.foundation.isSystemInDarkTheme
+
+private val DarkColorScheme = darkColorScheme(
+    primary = Color(0xFF80DEEA),
+    secondary = Color(0xFFB2EBF2),
+    tertiary = Color(0xFF4DD0E1),
+    background = Color(0xFF121212),
+    surface = Color(0xFF1E1E1E),
+    onPrimary = Color(0xFF00363A),
+    onSecondary = Color(0xFF00363A),
+    onBackground = Color(0xFFE1E3E1),
+    onSurface = Color(0xFFE1E3E1)
+)
+
+private val LightColorScheme = lightColorScheme(
+    primary = Color(0xFF006064),
+    secondary = Color(0xFF00838F),
+    tertiary = Color(0xFF0097A7),
+    background = Color(0xFFF8FDFF),
+    surface = Color(0xFFFFFFFF),
+    onPrimary = Color(0xFFFFFFFF),
+    onSecondary = Color(0xFFFFFFFF),
+    onBackground = Color(0xFF191C1C),
+    onSurface = Color(0xFF191C1C)
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 @Preview
 fun App(viewModel: MainViewModel = remember { MainViewModel() }) {
     val currentScreen by viewModel.currentScreen.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
+    
+    val systemInDark = isSystemInDarkTheme()
+    val useDarkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> systemInDark
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
 
-    MaterialTheme {
+    MaterialTheme(
+        colorScheme = if (useDarkTheme) DarkColorScheme else LightColorScheme
+    ) {
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -254,6 +289,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
     val operation by viewModel.operation.collectAsState()
     val precision by viewModel.precision.collectAsState()
     val suffix by viewModel.outputFolderSuffix.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
 
     ElevatedCard(
         modifier = Modifier.fillMaxSize(),
@@ -336,6 +372,28 @@ fun SettingsScreen(viewModel: MainViewModel) {
                     modifier = Modifier.fillMaxWidth(0.5f)
                 )
                 Text("The results folder will be named: InputFolderName_Suffix", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            HorizontalDivider()
+
+            // Theme Selection
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Appearance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ThemeMode.values().forEach { mode ->
+                        FilterChip(
+                            selected = themeMode == mode,
+                            onClick = { viewModel.setThemeMode(mode) },
+                            label = { 
+                                Text(mode.name.lowercase().replaceFirstChar { it.uppercase() }) 
+                            },
+                            leadingIcon = if (themeMode == mode) {
+                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else null
+                        )
+                    }
+                }
+                Text("Choose how Pico Signal Processor looks on your device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

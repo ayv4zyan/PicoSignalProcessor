@@ -8,6 +8,8 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.util.prefs.Preferences
 
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
 enum class Screen { HOME, SETTINGS }
 
 enum class ProcessingState { IDLE, PROCESSING, SUCCESS }
@@ -22,9 +24,13 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
     private val KEY_OP = "operation"
     private val KEY_PRECISION_TYPE = "precision_type" // 0 = Exact, 1 = Decimals
     private val KEY_PRECISION_VAL = "precision_val"
+    private val KEY_THEME = "theme_mode"
 
     private val _currentScreen = MutableStateFlow(Screen.HOME)
     val currentScreen = _currentScreen.asStateFlow()
+
+    private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
+    val themeMode = _themeMode.asStateFlow()
 
     private val _selectedDirectory = MutableStateFlow<File?>(null)
     val selectedDirectory = _selectedDirectory.asStateFlow()
@@ -72,10 +78,18 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
             val places = prefs.getInt(KEY_PRECISION_VAL, 2)
             Precision.Decimals(places)
         }
+
+        val themeName = prefs.get(KEY_THEME, ThemeMode.SYSTEM.name)
+        _themeMode.value = try { ThemeMode.valueOf(themeName) } catch (e: Exception) { ThemeMode.SYSTEM }
     }
 
     fun navigateTo(screen: Screen) {
         _currentScreen.value = screen
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        _themeMode.value = mode
+        prefs.put(KEY_THEME, mode.name)
     }
 
     fun selectDirectory(dir: File) {
