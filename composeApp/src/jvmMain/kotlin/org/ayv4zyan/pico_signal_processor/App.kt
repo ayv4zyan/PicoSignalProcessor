@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.awt.ComposeWindow
+import javax.swing.TransferHandler
 import java.awt.Cursor
 import java.awt.Desktop
 import java.awt.dnd.*
@@ -34,9 +35,8 @@ import java.io.File
 
 /**
  * Recursively attaches [dt] to this component and all of its descendants.
- * Required on macOS because Compose Desktop renders through a Skiko/Metal child
- * layer that sits above the window's own drop target — so we must cover the
- * entire component tree.
+ * Required on macOS/Windows because Compose Desktop renders through a Skiko child
+ * layer above the window's own drop target.
  */
 private fun java.awt.Component.attachDropTargetRecursively(dt: DropTarget) {
     dropTarget = dt
@@ -45,6 +45,26 @@ private fun java.awt.Component.attachDropTargetRecursively(dt: DropTarget) {
     }
 }
 
+/**
+ * Recursively attaches a ContainerListener to this container AND all nested
+ * containers so new Compose/Skiko child components get the DropTarget too.
+ * On Windows the Skiko-DirectX layer is added inside contentPane — not the
+ * window directly — so listening only on the window misses those events.
+ */
+private fun java.awt.Container.attachContainerListenerRecursively(dt: DropTarget) {
+    addContainerListener(object : java.awt.event.ContainerAdapter() {
+        override fun componentAdded(e: java.awt.event.ContainerEvent) {
+            e.child.attachDropTargetRecursively(dt)
+            if (e.child is java.awt.Container) {
+                (e.child as java.awt.Container).attachContainerListenerRecursively(dt)
+            }
+        }
+    })
+    // Also recurse into already-present containers
+    components.filterIsInstance<java.awt.Container>().forEach {
+        it.attachContainerListenerRecursively(dt)
+    }
+}
 
 private val DarkColorScheme = darkColorScheme(
     primary = Color(0xFFD0BCFF),
@@ -151,9 +171,11 @@ fun HomeScreen(viewModel: MainViewModel, window: ComposeWindow?) {
     val isLogExpanded by viewModel.isLogExpanded.collectAsState()
     val suffix by viewModel.outputFolderSuffix.collectAsState()
 
-    // macOS Compose Desktop renders through a Skiko/Metal child component that sits
-    // above contentPane. We must attach the DropTarget to ALL components recursively
-    // to guarantee the OS delivers drag events regardless of which layer is on top.
+    // Compose Desktop renders through a Skiko child layer (Metal on macOS, DirectX
+    // on Windows). We cover all platforms by:
+    //  1. Recursively attaching DropTarget to the full initial component tree.
+    //  2. Adding recursive ContainerListeners so future components also get it.
+    //  3. Installing a TransferHandler on rootPane — Windows strongly prefers this.
     LaunchedEffect(window) {
         val target = object : DropTarget() {
             override fun dragEnter(dtde: DropTargetDragEvent) {
@@ -193,15 +215,35 @@ fun HomeScreen(viewModel: MainViewModel, window: ComposeWindow?) {
             }
         }
 
-        // Attach to the full component tree — covers macOS Skiko rendering layer.
+        // 1 & 2: Recursive DropTarget + ContainerListener (covers macOS + Windows)
         window?.attachDropTargetRecursively(target)
+        window?.attachContainerListenerRecursively(target)
 
-        // Handle any components Compose adds after initial layout.
-        window?.addContainerListener(object : java.awt.event.ContainerAdapter() {
-            override fun componentAdded(e: java.awt.event.ContainerEvent) {
-                e.child.attachDropTargetRecursively(target)
+        // 3: TransferHandler on rootPane — preferred mechanism on Windows
+        window?.rootPane?.transferHandler = object : TransferHandler() {
+            override fun canImport(support: TransferSupport): Boolean {
+                if (!support.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) return false
+                if (support.isDrop) support.dropAction = COPY
+                return true
             }
-        })
+            override fun importData(support: TransferSupport): Boolean {
+                if (!canImport(support)) return false
+                return try {
+                    @Suppress("UNCHECKED_CAST")
+                    val files = support.transferable
+                        .getTransferData(DataFlavor.javaFileListFlavor) as? List<File>
+                    val dir = files?.firstOrNull { it.isDirectory }
+                    if (dir != null) {
+                        viewModel.selectDirectory(dir)
+                        viewModel.setDragging(false)
+                        true
+                    } else false
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    false
+                }
+            }
+        }
     }
 
     Column(
