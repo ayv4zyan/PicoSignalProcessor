@@ -150,7 +150,7 @@ fun HomeScreen(viewModel: MainViewModel) {
                             },
                             enabled = processingState != ProcessingState.PROCESSING
                         ) {
-                            Text("Browse...")
+                            Text("Browse")
                         }
                         Text(
                             text = selectedDir?.absolutePath ?: "No input directory selected",
@@ -176,7 +176,7 @@ fun HomeScreen(viewModel: MainViewModel) {
                             },
                             enabled = processingState != ProcessingState.PROCESSING
                         ) {
-                            Text("Browse...")
+                            Text("Browse")
                         }
                         Text(
                             text = customOutputDir?.absolutePath ?: "Default: Same as input directory",
@@ -326,39 +326,43 @@ fun SettingsScreen(viewModel: MainViewModel) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Output Precision", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 
-                val isExact = precision is Precision.Exact
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = isExact,
-                        onCheckedChange = { 
-                            if (it) {
-                                viewModel.setPrecision(Precision.Exact)
-                            } else {
-                                viewModel.setPrecision(Precision.Decimals(2))
-                            }
-                        }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    FilterChip(
+                        selected = precision is Precision.Exact,
+                        onClick = { viewModel.setPrecision(Precision.Exact) },
+                        label = { Text("Exact") }
                     )
-                    Text("Exact Match (No rounding)")
-                }
-
-                if (!isExact) {
-                    val currentPlaces = (precision as? Precision.Decimals)?.places ?: 2
-                    var textValue by remember(currentPlaces) { mutableStateOf(currentPlaces.toString()) }
-
-                    OutlinedTextField(
-                        value = textValue,
-                        onValueChange = { 
-                            textValue = it
-                            val intVal = it.toIntOrNull()
-                            if (intVal != null && intVal >= 0) {
-                                viewModel.setPrecision(Precision.Decimals(intVal))
-                            }
-                        },
-                        label = { Text("Decimal Places") },
-                        singleLine = true,
-                        modifier = Modifier.width(200.dp)
+                    FilterChip(
+                        selected = precision is Precision.Decimals,
+                        onClick = { viewModel.setPrecision(Precision.Decimals(2)) },
+                        label = { Text("Decimals") }
                     )
+
+                    if (precision is Precision.Decimals) {
+                        val currentPlaces = precision.places
+                        var textValue by remember(currentPlaces) { mutableStateOf(currentPlaces.toString()) }
+
+                        OutlinedTextField(
+                            value = textValue,
+                            onValueChange = { 
+                                textValue = it
+                                val intVal = it.toIntOrNull()
+                                if (intVal != null && intVal >= 0) {
+                                    viewModel.setPrecision(Precision.Decimals(intVal))
+                                }
+                            },
+                            label = { Text("Places") },
+                            singleLine = true,
+                            modifier = Modifier.width(90.dp),
+                            textStyle = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
+                Text("Exact match doesn't round values. Decimals will round to the specified precision.", 
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             HorizontalDivider()
@@ -403,6 +407,21 @@ fun SettingsScreen(viewModel: MainViewModel) {
                     }
                 }
                 Text("Choose how Pico Signal Processor looks on your device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            HorizontalDivider()
+
+            // Reset Button
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                OutlinedButton(
+                    onClick = { viewModel.resetToDefaults() },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Reset to Defaults")
+                }
             }
         }
     }

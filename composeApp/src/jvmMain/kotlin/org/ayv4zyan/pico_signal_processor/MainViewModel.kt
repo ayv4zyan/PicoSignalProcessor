@@ -173,6 +173,20 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
         }
     }
 
+    fun resetToDefaults() {
+        prefs.clear()
+        _selectedDirectory.value = null
+        _customOutputDirectory.value = null
+        _outputFolderSuffix.value = "PSP_Output"
+        _operation.value = SignalOperation.MAX
+        _precision.value = Precision.Exact
+        _themeMode.value = ThemeMode.SYSTEM
+        _processingState.value = ProcessingState.IDLE
+        _progress.value = 0f
+        _logs.value = emptyList()
+        log("Settings reset to defaults.")
+    }
+
     private fun log(message: String) {
         val currentLogs = _logs.value.toMutableList()
         currentLogs.add(message)
