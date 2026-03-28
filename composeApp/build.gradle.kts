@@ -39,8 +39,16 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "org.ayv4zyan.pico_signal_processor"
+            packageName = "PicoSignalProcessor"
             packageVersion = "1.0.0"
+            description = "Pico Signal Processor"
+            vendor = "ayv4zyan"
+            copyright = "© 2026 Pico Signal Processor"
+
+            linux {
+                packageName = "pico-signal-processor"
+                debMaintainer = "ayv4zyan@example.com"
+            }
         }
     }
 }
