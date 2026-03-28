@@ -35,6 +35,11 @@
       "source": "nextlevelbuilder/ui-ux-pro-max-skill",
       "sourceType": "github",
       "computedHash": "0a413bf988d06481f69bb81df2070741c3ba12dd9f1be2706d57f259c905992d"
+    },
+    "ux-audit": {
+      "source": "jezweb/claude-skills",
+      "sourceType": "github",
+      "computedHash": "3d61eccf65efd8b67da8a99b2b89996fbe35ba92ccf0239e19d08fe9e5e27d8d"
     }
   }
 }

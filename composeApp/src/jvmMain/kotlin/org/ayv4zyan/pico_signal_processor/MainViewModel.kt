@@ -32,6 +32,12 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
     private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
     val themeMode = _themeMode.asStateFlow()
 
+    private val _isLogExpanded = MutableStateFlow(false)
+    val isLogExpanded = _isLogExpanded.asStateFlow()
+
+    private val _isDragging = MutableStateFlow(false)
+    val isDragging = _isDragging.asStateFlow()
+
     private val _selectedDirectory = MutableStateFlow<File?>(null)
     val selectedDirectory = _selectedDirectory.asStateFlow()
 
@@ -183,8 +189,18 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
         _themeMode.value = ThemeMode.SYSTEM
         _processingState.value = ProcessingState.IDLE
         _progress.value = 0f
+        _isLogExpanded.value = false
+        _isDragging.value = false
         _logs.value = emptyList()
         log("Settings reset to defaults.")
+    }
+
+    fun setLogExpanded(expanded: Boolean) {
+        _isLogExpanded.value = expanded
+    }
+
+    fun setDragging(dragging: Boolean) {
+        _isDragging.value = dragging
     }
 
     private fun log(message: String) {

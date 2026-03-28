@@ -1,28 +1,31 @@
 package org.ayv4zyan.pico_signal_processor
 
 import androidx.compose.animation.*
-import androidx.compose.foundation.background
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.*
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import java.io.File
 import java.awt.Desktop
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.ExperimentalComposeUiApi
+import java.net.URI
 
 private val DarkColorScheme = darkColorScheme(
     primary = Color(0xFFD0BCFF),
@@ -116,6 +119,7 @@ fun App(viewModel: MainViewModel = remember { MainViewModel() }) {
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun HomeScreen(viewModel: MainViewModel) {
     val selectedDir by viewModel.selectedDirectory.collectAsState()
@@ -123,103 +127,130 @@ fun HomeScreen(viewModel: MainViewModel) {
     val processingState by viewModel.processingState.collectAsState()
     val progress by viewModel.progress.collectAsState()
     val logs by viewModel.logs.collectAsState()
+    val isDragging by viewModel.isDragging.collectAsState()
+    val isLogExpanded by viewModel.isLogExpanded.collectAsState()
+    val suffix by viewModel.outputFolderSuffix.collectAsState()
 
-    ElevatedCard(
-        modifier = Modifier.fillMaxSize(),
-        shape = RoundedCornerShape(16.dp)
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(24.dp).fillMaxSize().verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            // Directories Section
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                // Input
-                Column {
-                    Text("1. Input Directory", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Button(
-                            onClick = { 
-                                val picked = openDirectoryPicker(selectedDir)
-                                if (picked != null) viewModel.selectDirectory(picked)
-                            },
-                            enabled = processingState != ProcessingState.PROCESSING
-                        ) {
-                            Text("Browse")
-                        }
-                        Text(
-                            text = selectedDir?.absolutePath ?: "No input directory selected",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (selectedDir != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+        // Section 1: Drop Zone (Input)
+        ElevatedCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .clickable {
+                    val picked = openDirectoryPicker(selectedDir)
+                    if (picked != null) viewModel.selectDirectory(picked)
                 }
-
-                // Output
-                Column {
-                    Text("2. Output Directory (Optional)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Button(
-                            onClick = { 
-                                val picked = openDirectoryPicker(customOutputDir ?: selectedDir)
-                                if (picked != null) viewModel.selectOutputDirectory(picked)
-                            },
-                            enabled = processingState != ProcessingState.PROCESSING
-                        ) {
-                            Text("Browse")
-                        }
+                .border(
+                    BorderStroke(
+                        2.dp,
+                        if (isDragging) MaterialTheme.colorScheme.primary else Color.Transparent
+                    ),
+                    RoundedCornerShape(16.dp)
+                ),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        if (selectedDir != null) Icons.Default.FolderZip else Icons.Default.FileUpload,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = if (isDragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        text = selectedDir?.name ?: "Drop folder here or click to browse",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    if (selectedDir != null) {
                         Text(
-                            text = customOutputDir?.absolutePath ?: "Default: Same as input directory",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (customOutputDir != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                            text = selectedDir?.absolutePath ?: "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 24.dp)
                         )
                     }
                 }
             }
+        }
 
-            // Start Button & Progress
-            Column(
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+        // Section 2: Output Path Quick-Link
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically, 
+                modifier = Modifier.weight(1f)
             ) {
+                Icon(Icons.Default.Output, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(8.dp))
+                val outName = customOutputDir?.name ?: "${selectedDir?.name ?: "Input"}_$suffix"
+                Text(
+                    text = "Saving to: $outName",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            TextButton(
+                onClick = {
+                    val picked = openDirectoryPicker(customOutputDir ?: selectedDir)
+                    if (picked != null) viewModel.selectOutputDirectory(picked)
+                },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+            ) {
+                Text("Change", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        // Section 3: Action Center (Start / Processing / Finished)
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
                 if (processingState == ProcessingState.SUCCESS) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Button(
                             onClick = { },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50), contentColor = Color.White),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
                             shape = RoundedCornerShape(50),
-                            modifier = Modifier.height(50.dp)
+                            modifier = Modifier.height(56.dp).padding(horizontal = 16.dp)
                         ) {
-                            Icon(Icons.Default.Check, contentDescription = "Finished", modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.CheckCircle, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text("Finished", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                            Text("Finished", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }
-
+                        
                         OutlinedButton(
                             onClick = {
                                 viewModel.lastSuccessDirectory?.let { dir ->
-                                    try {
-                                        Desktop.getDesktop().open(dir)
-                                    } catch (e: Exception) {
-                                        e.printStackTrace()
-                                    }
+                                    try { Desktop.getDesktop().open(dir) } catch (e: Exception) { e.printStackTrace() }
                                 }
                             },
                             shape = RoundedCornerShape(50),
-                            modifier = Modifier.height(50.dp)
+                            modifier = Modifier.height(56.dp)
                         ) {
-                            Text("Open Output Folder")
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Open Folder")
                         }
                     }
                 } else {
@@ -227,57 +258,108 @@ fun HomeScreen(viewModel: MainViewModel) {
                         onClick = { viewModel.startProcessing() },
                         enabled = selectedDir != null && processingState == ProcessingState.IDLE,
                         shape = RoundedCornerShape(50),
-                        modifier = Modifier.fillMaxWidth(0.5f).height(50.dp)
+                        modifier = Modifier.fillMaxWidth(0.6f).height(56.dp).shadow(
+                            elevation = if (selectedDir != null) 4.dp else 0.dp,
+                            shape = RoundedCornerShape(50)
+                        )
                     ) {
-                        Text(
-                            if (processingState == ProcessingState.PROCESSING) "Processing..." else "Start Processing",
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
-                }
-
-                AnimatedVisibility(visible = processingState == ProcessingState.PROCESSING || progress > 0f) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        LinearProgressIndicator(
-                            progress = { progress },
-                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "${(progress * 100).toInt()}%",
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                        if (processingState == ProcessingState.PROCESSING) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 3.dp
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text("Processing...", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        } else {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Start Processing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
 
-            // Logs
-            Spacer(Modifier.height(8.dp))
-            Text("Logs", style = MaterialTheme.typography.titleSmall)
-            val listState = rememberLazyListState()
-            
-            LaunchedEffect(logs.size) {
-                if (logs.isNotEmpty()) {
-                    listState.scrollToItem(logs.size - 1)
+            // Glowing Progress Bar
+            AnimatedVisibility(visible = processingState == ProcessingState.PROCESSING || progress > 0f) {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(10.dp)
+                            .clip(RoundedCornerShape(5.dp)),
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text("${(progress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
                 }
             }
+        }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 150.dp, max = 300.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(8.dp)
-            ) {
-                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                    items(logs) { log ->
+        Spacer(Modifier.weight(1f))
+
+        // Section 4: Collapsible Log Tray
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 8.dp, bottomEnd = 8.dp)
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.setLogExpanded(!isLogExpanded) }
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            if (isLogExpanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(12.dp))
                         Text(
-                            text = log,
+                            "Processing Details",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    if (!isLogExpanded && logs.isNotEmpty()) {
+                        Text(
+                            text = logs.last(),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).padding(start = 16.dp)
                         )
+                    }
+                }
+
+                AnimatedVisibility(visible = isLogExpanded) {
+                    val listState = rememberLazyListState()
+                    LaunchedEffect(logs.size) { if (logs.isNotEmpty()) listState.animateScrollToItem(logs.size - 1) }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                            items(logs) { log ->
+                                Text(
+                                    text = log,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
             }
