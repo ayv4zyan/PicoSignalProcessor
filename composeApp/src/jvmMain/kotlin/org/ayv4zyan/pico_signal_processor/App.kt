@@ -6,34 +6,45 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.*
-import androidx.compose.ui.graphics.*
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.*
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.tooling.preview.Preview
-import java.io.File
-import java.awt.Desktop
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.ExperimentalComposeUiApi
-import java.net.URI
-import java.awt.dnd.*
-import java.awt.datatransfer.DataFlavor
-import androidx.compose.ui.awt.ComposeWindow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.awt.ComposeWindow
 import java.awt.Cursor
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.ui.draganddrop.*
+import java.awt.Desktop
+import java.awt.dnd.*
+import java.awt.datatransfer.DataFlavor
+import java.io.File
+
+/**
+ * Recursively attaches [dt] to this component and all of its descendants.
+ * Required on macOS because Compose Desktop renders through a Skiko/Metal child
+ * layer that sits above the window's own drop target — so we must cover the
+ * entire component tree.
+ */
+private fun java.awt.Component.attachDropTargetRecursively(dt: DropTarget) {
+    dropTarget = dt
+    if (this is java.awt.Container) {
+        components.forEach { it.attachDropTargetRecursively(dt) }
+    }
+}
+
 
 private val DarkColorScheme = darkColorScheme(
     primary = Color(0xFFD0BCFF),
@@ -63,7 +74,6 @@ private val LightColorScheme = lightColorScheme(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-@Preview
 fun App(
     viewModel: MainViewModel = remember { MainViewModel() },
     window: ComposeWindow? = null
@@ -130,7 +140,6 @@ fun App(
     }
 }
 
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun HomeScreen(viewModel: MainViewModel, window: ComposeWindow?) {
     val selectedDir by viewModel.selectedDirectory.collectAsState()
@@ -184,18 +193,10 @@ fun HomeScreen(viewModel: MainViewModel, window: ComposeWindow?) {
             }
         }
 
-        // Recursively attach to every AWT component in the window hierarchy.
-        // This covers the ComposeWindow, its contentPane, and the Skiko rendering layer.
-        fun java.awt.Component.attachDropTargetRecursively(dt: DropTarget) {
-            dropTarget = dt
-            if (this is java.awt.Container) {
-                components.forEach { it.attachDropTargetRecursively(dt) }
-            }
-        }
-
+        // Attach to the full component tree — covers macOS Skiko rendering layer.
         window?.attachDropTargetRecursively(target)
 
-        // Also listen for new components being added (e.g. Skiko layer added after init)
+        // Handle any components Compose adds after initial layout.
         window?.addContainerListener(object : java.awt.event.ContainerAdapter() {
             override fun componentAdded(e: java.awt.event.ContainerEvent) {
                 e.child.attachDropTargetRecursively(target)
@@ -319,7 +320,7 @@ fun HomeScreen(viewModel: MainViewModel, window: ComposeWindow?) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
                 if (processingState == ProcessingState.SUCCESS) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(
+                    Button(
                             onClick = { },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
                             shape = RoundedCornerShape(50),
@@ -407,8 +408,10 @@ fun HomeScreen(viewModel: MainViewModel, window: ComposeWindow?) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            if (isLogExpanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
-                            contentDescription = null,
+                            // ExpandLess = chevron pointing up = currently collapsed, click to open
+                            // ExpandMore = chevron pointing down = currently expanded, click to close
+                            if (isLogExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (isLogExpanded) "Collapse logs" else "Expand logs",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.width(12.dp))
