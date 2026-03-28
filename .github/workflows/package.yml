@@ -90,9 +90,9 @@ jobs:
           tag_name: ${{ steps.tag.outputs.tag_name }}
           name: Release ${{ steps.tag.outputs.tag_name }}
           files: |
-            release-artifacts/*.dmg
-            release-artifacts/*.msi
-            release-artifacts/*.deb
+            release-artifacts/**/*.dmg
+            release-artifacts/**/*.msi
+            release-artifacts/**/*.deb
           draft: false
           prerelease: false
           generate_release_notes: true
