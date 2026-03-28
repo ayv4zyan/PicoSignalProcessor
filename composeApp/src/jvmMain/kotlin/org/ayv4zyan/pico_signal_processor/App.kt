@@ -342,7 +342,8 @@ fun SettingsScreen(viewModel: MainViewModel) {
                     )
 
                     if (precision is Precision.Decimals) {
-                        val currentPlaces = precision.places
+                        val p = precision as Precision.Decimals
+                        val currentPlaces = p.places
                         var textValue by remember(currentPlaces) { mutableStateOf(currentPlaces.toString()) }
 
                         OutlinedTextField(
