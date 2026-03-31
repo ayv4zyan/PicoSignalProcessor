@@ -9,8 +9,7 @@
 
 Stop fighting sluggish spreadsheets and manual data extraction. **Pico Signal Processor (PSP)** is a high-performance, cross-platform desktop application designed to batch-process millions of signal data points in milliseconds.
 
-![Hero Screenshot](screenshots/hero.png)
-*(Replace this with a screenshot of your Control Center dashboard)*
+
 
 ---
 
