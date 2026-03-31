@@ -67,11 +67,6 @@ Clone the repository and run the application directly from your terminal:
 
 ---
 
-## 🗺️ Roadmap
-- [ ] **Android/iOS Targets**: Bringing signal analysis to mobile via Compose Multiplatform.
-- [ ] **Web Support**: Browser-based analysis using Kotlin/Wasm.
-- [ ] **Advanced Filtering**: Noise reduction and signal smoothing algorithms.
-
 ## 🤝 Contributing
 Contributions are welcome! If you have ideas for new signal processing operations or UI improvements, please open an issue or submit a PR.
 
