@@ -741,6 +741,14 @@ fun SettingsScreen(viewModel: MainViewModel) {
                     Text("Reset to Defaults")
                 }
             }
+
+            Text(
+                text = "Version ${AppVersion.VERSION}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

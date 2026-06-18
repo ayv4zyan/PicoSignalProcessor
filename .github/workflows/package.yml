@@ -80,7 +80,7 @@ jobs:
       - name: Read package version
         id: version
         run: |
-          VERSION=$(grep 'packageVersion' composeApp/build.gradle.kts | sed -E 's/.*packageVersion = "([^"]+)".*/\1/')
+          VERSION=$(sed -n 's/^appVersion = "\(.*\)"/\1/p' gradle/libs.versions.toml)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Package version: $VERSION"
 
