@@ -19,7 +19,7 @@ class SignalProcessor {
 
     data class ProcessingResult(
         val filename: String,
-        val value: Double?,
+        val channelValues: Map<String, Double?> = emptyMap(),
         val error: String? = null
     )
 
@@ -53,7 +53,7 @@ class SignalProcessor {
         onLog("Scanning directory for CSV files...")
         val csvFiles = directory.walkTopDown()
             .filter { it.isFile && it.extension.equals("csv", ignoreCase = true) }
-            .filter { !it.name.startsWith("output_") }
+            .filter { !it.name.startsWith("output_") && !it.name.startsWith("frequency_summary_") }
             .toList()
 
         val totalFiles = csvFiles.size
@@ -65,7 +65,6 @@ class SignalProcessor {
         onLog("Found $totalFiles CSV files. Starting processing...")
         var processedCount = 0
 
-        // Process files concurrently for better performance
         val results = csvFiles.map { file ->
             async {
                 val result = processSingleFile(file, operation)
@@ -80,86 +79,75 @@ class SignalProcessor {
             }
         }.awaitAll()
 
-        onLog("Finished processing. Generating output CSV...")
+        val channelNames = results
+            .flatMap { it.channelValues.keys }
+            .distinct()
+            .sorted()
 
-        val outputFile = File(targetDir, "output_summary.csv")
-        outputFile.bufferedWriter().use { writer ->
-            writer.write("FileName,Value\n")
-            results.forEach { result ->
-                if (result.value != null) {
-                    writer.write("${result.filename},${result.value}\n")
-                } else if (result.error != null) {
-                    onLog("Failed to process ${result.filename}: ${result.error}")
-                }
-            }
+        if (channelNames.isEmpty()) {
+            onLog("No channel data found in the selected CSV files.")
+            return@withContext null
         }
 
-        onLog("Output saved to: ${outputFile.absolutePath}")
+        onLog("Detected channels: ${channelNames.joinToString(", ")}")
 
-        onLog("Counting value frequencies...")
-        val valueCounts = mutableMapOf<Double, Int>()
-        
-        results.forEach { result ->
-            val v = result.value
-            if (v != null) {
-                val roundedValue = when (precision) {
-                    is Precision.Exact -> v
-                    is Precision.Decimals -> {
-                        java.math.BigDecimal(v.toString())
-                            .setScale(precision.places, java.math.RoundingMode.HALF_UP)
-                            .toDouble()
-                    }
-                }
-                valueCounts[roundedValue] = valueCounts.getOrDefault(roundedValue, 0) + 1
-            }
-        }
-        
-        val sortedCounts = valueCounts.entries.sortedBy { it.key }
-        
-        val freqFile = File(targetDir, "frequency_summary.csv")
-        freqFile.bufferedWriter().use { writer ->
-            writer.write("Value,Count\n")
-            sortedCounts.forEach { entry ->
-                // Format decimal to avoid scientific notation if preferred, but standard Double toString is usually fine.
-                writer.write("${entry.key},${entry.value}\n")
-            }
-        }
-        
-        onLog("Frequency counts saved to: ${freqFile.absolutePath}")
-
-        return@withContext targetDir
-    }
-
-    private fun processSingleFile(file: File, operation: SignalOperation): ProcessingResult {
-        return try {
-            var targetValue: Double? = null
-
-            file.useLines { lines ->
-                // Skip header lines (usually 2, sometimes an empty line)
-                val dataLines = lines.drop(2)
-                for (line in dataLines) {
-                    if (line.isBlank()) continue
-                    
-                    val parts = line.split(",")
-                    if (parts.size >= 2) {
-                        val valueStr = parts[1].trim()
-                        val value = valueStr.toDoubleOrNull()
-                        if (value != null) {
-                            if (targetValue == null) {
-                                targetValue = value
-                            } else {
-                                targetValue = when (operation) {
-                                    SignalOperation.MAX -> maxOf(targetValue!!, value)
-                                    SignalOperation.MIN -> minOf(targetValue!!, value)
-                                }
+        onLog("Finished processing. Generating output CSVs...")
+        channelNames.forEach { channelName ->
+            val safeName = CsvSignalParser.sanitizeChannelFileName(channelName)
+            val outputFile = File(targetDir, "output_summary_$safeName.csv")
+            outputFile.bufferedWriter().use { writer ->
+                writer.write("FileName,Value\n")
+                results.forEach { result ->
+                    when {
+                        result.error != null -> onLog("Failed to process ${result.filename}: ${result.error}")
+                        else -> {
+                            val value = result.channelValues[channelName]
+                            if (value != null) {
+                                writer.write("${result.filename},$value\n")
                             }
                         }
                     }
                 }
             }
-            ProcessingResult(file.name, targetValue)
+            onLog("Output saved to: ${outputFile.absolutePath}")
+
+            onLog("Counting value frequencies for $channelName...")
+            val valueCounts = mutableMapOf<Double, Int>()
+            results.forEach { result ->
+                val value = result.channelValues[channelName]
+                if (value != null) {
+                    val roundedValue = when (precision) {
+                        is Precision.Exact -> value
+                        is Precision.Decimals -> {
+                            java.math.BigDecimal(value.toString())
+                                .setScale(precision.places, java.math.RoundingMode.HALF_UP)
+                                .toDouble()
+                        }
+                    }
+                    valueCounts[roundedValue] = valueCounts.getOrDefault(roundedValue, 0) + 1
+                }
+            }
+
+            val sortedCounts = valueCounts.entries.sortedBy { it.key }
+            val freqFile = File(targetDir, "frequency_summary_$safeName.csv")
+            freqFile.bufferedWriter().use { writer ->
+                writer.write("Value,Count\n")
+                sortedCounts.forEach { entry ->
+                    writer.write("${entry.key},${entry.value}\n")
+                }
+            }
+            onLog("Frequency counts saved to: ${freqFile.absolutePath}")
+        }
+
+        return@withContext targetDir
+    }
+
+    internal fun processSingleFile(file: File, operation: SignalOperation): ProcessingResult {
+        return try {
+            val channelValues = CsvSignalParser.processFile(file, operation)
+            ProcessingResult(file.name, channelValues)
         } catch (e: Exception) {
-            ProcessingResult(file.name, null, e.message ?: "Unknown error")
+            ProcessingResult(file.name, error = e.message ?: "Unknown error")
         }
     }
 }
