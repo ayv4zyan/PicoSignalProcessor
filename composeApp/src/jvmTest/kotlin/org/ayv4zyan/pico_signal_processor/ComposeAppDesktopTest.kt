@@ -140,6 +140,9 @@ class ComposeAppDesktopTest {
             operation = SignalOperation.MAX,
             precision = Precision.Exact,
             invertValues = false,
+            outputSortBy = OutputSortBy.VALUE,
+            outputSortOrder = OutputSortOrder.ASCENDING,
+            summaryFileLayout = SummaryFileLayout.SEPARATE,
             customOutputDirectory = outputDir,
             outputFolderSuffix = "PSP_Output",
             onProgress = { _, _ -> },
@@ -197,6 +200,9 @@ class ComposeAppDesktopTest {
             operation = SignalOperation.MAX,
             precision = Precision.Exact,
             invertValues = true,
+            outputSortBy = OutputSortBy.VALUE,
+            outputSortOrder = OutputSortOrder.ASCENDING,
+            summaryFileLayout = SummaryFileLayout.SEPARATE,
             customOutputDirectory = outputDir,
             outputFolderSuffix = "PSP_Output",
             onProgress = { _, _ -> },
@@ -243,6 +249,9 @@ class ComposeAppDesktopTest {
             operation = SignalOperation.MIN,
             precision = Precision.Exact,
             invertValues = false,
+            outputSortBy = OutputSortBy.VALUE,
+            outputSortOrder = OutputSortOrder.ASCENDING,
+            summaryFileLayout = SummaryFileLayout.SEPARATE,
             customOutputDirectory = outputDir,
             outputFolderSuffix = "PSP_Output",
             onProgress = { _, _ -> },
@@ -256,6 +265,260 @@ class ComposeAppDesktopTest {
 
         assertEquals("sample.csv,-3.0", summary[1])
         assertEquals("-3.0,1", freq[1])
+    }
+
+    @Test
+    fun processDirectory_outputSortByCount_sortsFrequencySummaryByDescendingCount() = runBlocking {
+        val inputDir = createTempDirectory("psp-input-sort-count-").toFile()
+        val outputDir = createTempDirectory("psp-output-sort-count-").toFile()
+
+        repeat(3) { index ->
+            createCsvInDir(
+                dir = inputDir,
+                name = "sample_$index.csv",
+                header = "Time,Channel A",
+                units = "(ms),(V)",
+                rows = listOf("0.0,1.0")
+            )
+        }
+        createCsvInDir(
+            dir = inputDir,
+            name = "sample_high.csv",
+            header = "Time,Channel A",
+            units = "(ms),(V)",
+            rows = listOf("0.0,2.0")
+        )
+        createCsvInDir(
+            dir = inputDir,
+            name = "sample_mid.csv",
+            header = "Time,Channel A",
+            units = "(ms),(V)",
+            rows = listOf("0.0,2.0")
+        )
+
+        val resultDir = SignalProcessor().processDirectory(
+            directory = inputDir,
+            operation = SignalOperation.MAX,
+            precision = Precision.Exact,
+            invertValues = false,
+            outputSortBy = OutputSortBy.COUNT,
+            outputSortOrder = OutputSortOrder.DESCENDING,
+            summaryFileLayout = SummaryFileLayout.SEPARATE,
+            customOutputDirectory = outputDir,
+            outputFolderSuffix = "PSP_Output",
+            onProgress = { _, _ -> },
+            onLog = {}
+        )
+
+        assertNotNull(resultDir)
+
+        val freq = File(resultDir, "frequency_summary_Channel_A.csv").readLines()
+        assertEquals("Value,Count", freq.first())
+        assertEquals("1.0,3", freq[1])
+        assertEquals("2.0,2", freq[2])
+    }
+
+    @Test
+    fun processDirectory_outputSortByValueDescending_sortsFrequencySummaryByDescendingValue() = runBlocking {
+        val inputDir = createTempDirectory("psp-input-sort-value-desc-").toFile()
+        val outputDir = createTempDirectory("psp-output-sort-value-desc-").toFile()
+
+        createCsvInDir(
+            dir = inputDir,
+            name = "low.csv",
+            header = "Time,Channel A",
+            units = "(ms),(V)",
+            rows = listOf("0.0,1.0")
+        )
+        createCsvInDir(
+            dir = inputDir,
+            name = "high.csv",
+            header = "Time,Channel A",
+            units = "(ms),(V)",
+            rows = listOf("0.0,3.0")
+        )
+        createCsvInDir(
+            dir = inputDir,
+            name = "mid.csv",
+            header = "Time,Channel A",
+            units = "(ms),(V)",
+            rows = listOf("0.0,2.0")
+        )
+
+        val resultDir = SignalProcessor().processDirectory(
+            directory = inputDir,
+            operation = SignalOperation.MAX,
+            precision = Precision.Exact,
+            invertValues = false,
+            outputSortBy = OutputSortBy.VALUE,
+            outputSortOrder = OutputSortOrder.DESCENDING,
+            summaryFileLayout = SummaryFileLayout.SEPARATE,
+            customOutputDirectory = outputDir,
+            outputFolderSuffix = "PSP_Output",
+            onProgress = { _, _ -> },
+            onLog = {}
+        )
+
+        assertNotNull(resultDir)
+
+        val freq = File(resultDir, "frequency_summary_Channel_A.csv").readLines()
+        assertEquals("Value,Count", freq.first())
+        assertEquals("3.0,1", freq[1])
+        assertEquals("2.0,1", freq[2])
+        assertEquals("1.0,1", freq[3])
+    }
+
+    @Test
+    fun processDirectory_outputSortByCountAscending_sortsFrequencySummaryByAscendingCount() = runBlocking {
+        val inputDir = createTempDirectory("psp-input-sort-count-asc-").toFile()
+        val outputDir = createTempDirectory("psp-output-sort-count-asc-").toFile()
+
+        repeat(3) { index ->
+            createCsvInDir(
+                dir = inputDir,
+                name = "sample_$index.csv",
+                header = "Time,Channel A",
+                units = "(ms),(V)",
+                rows = listOf("0.0,1.0")
+            )
+        }
+        repeat(2) { index ->
+            createCsvInDir(
+                dir = inputDir,
+                name = "pair_$index.csv",
+                header = "Time,Channel A",
+                units = "(ms),(V)",
+                rows = listOf("0.0,2.0")
+            )
+        }
+
+        val resultDir = SignalProcessor().processDirectory(
+            directory = inputDir,
+            operation = SignalOperation.MAX,
+            precision = Precision.Exact,
+            invertValues = false,
+            outputSortBy = OutputSortBy.COUNT,
+            outputSortOrder = OutputSortOrder.ASCENDING,
+            summaryFileLayout = SummaryFileLayout.SEPARATE,
+            customOutputDirectory = outputDir,
+            outputFolderSuffix = "PSP_Output",
+            onProgress = { _, _ -> },
+            onLog = {}
+        )
+
+        assertNotNull(resultDir)
+
+        val freq = File(resultDir, "frequency_summary_Channel_A.csv").readLines()
+        assertEquals("Value,Count", freq.first())
+        assertEquals("2.0,2", freq[1])
+        assertEquals("1.0,3", freq[2])
+    }
+
+    @Test
+    fun processDirectory_oneFileLayout_writesConsolidatedSummaries() = runBlocking {
+        val inputDir = createTempDirectory("psp-input-one-file-").toFile()
+        val outputDir = createTempDirectory("psp-output-one-file-").toFile()
+
+        createCsvInDir(
+            dir = inputDir,
+            name = "sample_a.csv",
+            header = "Time,Channel A,Channel B",
+            units = "(ns),(mV),(mV)",
+            rows = listOf(
+                "-1.0,1.0,10.0",
+                "0.0,5.0,2.0"
+            )
+        )
+        createCsvInDir(
+            dir = inputDir,
+            name = "sample_b.csv",
+            header = "Time,Channel A,Channel B",
+            units = "(ns),(mV),(mV)",
+            rows = listOf(
+                "-1.0,2.0,7.0",
+                "0.0,4.0,9.0"
+            )
+        )
+
+        val resultDir = SignalProcessor().processDirectory(
+            directory = inputDir,
+            operation = SignalOperation.MAX,
+            precision = Precision.Exact,
+            invertValues = false,
+            outputSortBy = OutputSortBy.VALUE,
+            outputSortOrder = OutputSortOrder.ASCENDING,
+            summaryFileLayout = SummaryFileLayout.ONE_FILE,
+            customOutputDirectory = outputDir,
+            outputFolderSuffix = "PSP_Output",
+            onProgress = { _, _ -> },
+            onLog = {}
+        )
+
+        assertNotNull(resultDir)
+
+        val outputSummary = File(resultDir, "output_summary.csv").readLines()
+        val frequencySummary = File(resultDir, "frequency_summary.csv").readLines()
+
+        assertEquals("FileName,Channel A,Channel B", outputSummary.first())
+        assertEquals("sample_a.csv,5.0,10.0", outputSummary[1])
+        assertEquals("sample_b.csv,4.0,9.0", outputSummary[2])
+
+        assertEquals("Value,Channel A,Channel B", frequencySummary.first())
+        assertEquals("4.0,1,0", frequencySummary[1])
+        assertEquals("5.0,1,0", frequencySummary[2])
+        assertEquals("9.0,0,1", frequencySummary[3])
+        assertEquals("10.0,0,1", frequencySummary[4])
+
+        assertTrue(!File(resultDir, "output_summary_Channel_A.csv").exists())
+        assertTrue(!File(resultDir, "frequency_summary_Channel_A.csv").exists())
+    }
+
+    @Test
+    fun processDirectory_bothLayout_writesConsolidatedAndSeparateSummaries() = runBlocking {
+        val inputDir = createTempDirectory("psp-input-both-").toFile()
+        val outputDir = createTempDirectory("psp-output-both-").toFile()
+
+        createCsvInDir(
+            dir = inputDir,
+            name = "sample.csv",
+            header = "Time,Channel A,Channel B",
+            units = "(ns),(mV),(mV)",
+            rows = listOf(
+                "-1.0,1.0,10.0",
+                "0.0,5.0,2.0"
+            )
+        )
+
+        val resultDir = SignalProcessor().processDirectory(
+            directory = inputDir,
+            operation = SignalOperation.MAX,
+            precision = Precision.Exact,
+            invertValues = false,
+            outputSortBy = OutputSortBy.COUNT,
+            outputSortOrder = OutputSortOrder.DESCENDING,
+            summaryFileLayout = SummaryFileLayout.BOTH,
+            customOutputDirectory = outputDir,
+            outputFolderSuffix = "PSP_Output",
+            onProgress = { _, _ -> },
+            onLog = {}
+        )
+
+        assertNotNull(resultDir)
+
+        assertTrue(File(resultDir, "output_summary.csv").exists())
+        assertTrue(File(resultDir, "frequency_summary.csv").exists())
+        assertTrue(File(resultDir, "output_summary_Channel_A.csv").exists())
+        assertTrue(File(resultDir, "output_summary_Channel_B.csv").exists())
+        assertTrue(File(resultDir, "frequency_summary_Channel_A.csv").exists())
+        assertTrue(File(resultDir, "frequency_summary_Channel_B.csv").exists())
+
+        val consolidatedFreq = File(resultDir, "frequency_summary.csv").readLines()
+        assertEquals("Value,Channel A,Channel B", consolidatedFreq.first())
+        assertEquals("10.0,0,1", consolidatedFreq[1])
+        assertEquals("5.0,1,0", consolidatedFreq[2])
+
+        val separateFreqA = File(resultDir, "frequency_summary_Channel_A.csv").readLines()
+        assertEquals("5.0,1", separateFreqA[1])
     }
 
     private fun createCsv(
