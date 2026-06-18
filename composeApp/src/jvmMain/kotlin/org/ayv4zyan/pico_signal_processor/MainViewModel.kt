@@ -25,6 +25,9 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
     private val KEY_PRECISION_TYPE = "precision_type" // 0 = Exact, 1 = Decimals
     private val KEY_PRECISION_VAL = "precision_val"
     private val KEY_INVERT_VALUES = "invert_values"
+    private val KEY_OUTPUT_SORT = "output_sort"
+    private val KEY_OUTPUT_SORT_ORDER = "output_sort_order"
+    private val KEY_SUMMARY_FILE_LAYOUT = "summary_file_layout"
     private val KEY_THEME = "theme_mode"
 
     private val _currentScreen = MutableStateFlow(Screen.HOME)
@@ -56,6 +59,15 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
 
     private val _invertValues = MutableStateFlow(false)
     val invertValues = _invertValues.asStateFlow()
+
+    private val _outputSortBy = MutableStateFlow(OutputSortBy.VALUE)
+    val outputSortBy = _outputSortBy.asStateFlow()
+
+    private val _outputSortOrder = MutableStateFlow(OutputSortOrder.ASCENDING)
+    val outputSortOrder = _outputSortOrder.asStateFlow()
+
+    private val _summaryFileLayout = MutableStateFlow(SummaryFileLayout.ONE_FILE)
+    val summaryFileLayout = _summaryFileLayout.asStateFlow()
 
     private val _processingState = MutableStateFlow(ProcessingState.IDLE)
     val processingState = _processingState.asStateFlow()
@@ -90,6 +102,33 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
         }
 
         _invertValues.value = prefs.getBoolean(KEY_INVERT_VALUES, false)
+
+        val sortName = prefs.get(KEY_OUTPUT_SORT, OutputSortBy.VALUE.name)
+        _outputSortBy.value = try { OutputSortBy.valueOf(sortName) } catch (e: Exception) { OutputSortBy.VALUE }
+
+        val savedSortOrder = prefs.get(KEY_OUTPUT_SORT_ORDER, null)
+        _outputSortOrder.value = if (savedSortOrder != null) {
+            try { OutputSortOrder.valueOf(savedSortOrder) } catch (e: Exception) { OutputSortOrder.ASCENDING }
+        } else {
+            when (_outputSortBy.value) {
+                OutputSortBy.VALUE -> OutputSortOrder.ASCENDING
+                OutputSortBy.COUNT -> OutputSortOrder.DESCENDING
+            }
+        }
+
+        val layoutName = prefs.get(KEY_SUMMARY_FILE_LAYOUT, SummaryFileLayout.ONE_FILE.name)
+        _summaryFileLayout.value = try {
+            SummaryFileLayout.valueOf(layoutName)
+        } catch (e: Exception) {
+            SummaryFileLayout.ONE_FILE
+        }
+
+        if (_summaryFileLayout.value == SummaryFileLayout.ONE_FILE &&
+            _outputSortBy.value == OutputSortBy.COUNT
+        ) {
+            _outputSortBy.value = OutputSortBy.VALUE
+            prefs.put(KEY_OUTPUT_SORT, OutputSortBy.VALUE.name)
+        }
 
         val themeName = prefs.get(KEY_THEME, ThemeMode.SYSTEM.name)
         _themeMode.value = try { ThemeMode.valueOf(themeName) } catch (e: Exception) { ThemeMode.SYSTEM }
@@ -162,6 +201,35 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
         log("Invert values ${if (enabled) "enabled" else "disabled"}")
     }
 
+    fun setOutputSortBy(sortBy: OutputSortBy) {
+        if (_summaryFileLayout.value == SummaryFileLayout.ONE_FILE && sortBy == OutputSortBy.COUNT) {
+            return
+        }
+        _outputSortBy.value = sortBy
+        prefs.put(KEY_OUTPUT_SORT, sortBy.name)
+        _processingState.value = ProcessingState.IDLE
+        log("Output sort set to: $sortBy")
+    }
+
+    fun setSummaryFileLayout(layout: SummaryFileLayout) {
+        _summaryFileLayout.value = layout
+        prefs.put(KEY_SUMMARY_FILE_LAYOUT, layout.name)
+        if (layout == SummaryFileLayout.ONE_FILE && _outputSortBy.value == OutputSortBy.COUNT) {
+            _outputSortBy.value = OutputSortBy.VALUE
+            prefs.put(KEY_OUTPUT_SORT, OutputSortBy.VALUE.name)
+            log("Output sort set to: ${OutputSortBy.VALUE} (count sort unavailable in one-file mode)")
+        }
+        _processingState.value = ProcessingState.IDLE
+        log("Summary file layout set to: $layout")
+    }
+
+    fun setOutputSortOrder(order: OutputSortOrder) {
+        _outputSortOrder.value = order
+        prefs.put(KEY_OUTPUT_SORT_ORDER, order.name)
+        _processingState.value = ProcessingState.IDLE
+        log("Output sort order set to: $order")
+    }
+
     fun startProcessing() {
         val dir = _selectedDirectory.value
         if (dir == null) {
@@ -180,6 +248,9 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
                 operation = _operation.value,
                 precision = _precision.value,
                 invertValues = _invertValues.value,
+                outputSortBy = _outputSortBy.value,
+                outputSortOrder = _outputSortOrder.value,
+                summaryFileLayout = _summaryFileLayout.value,
                 customOutputDirectory = _customOutputDirectory.value,
                 outputFolderSuffix = _outputFolderSuffix.value,
                 onProgress = { current, total ->
@@ -205,6 +276,9 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
         _operation.value = SignalOperation.MAX
         _precision.value = Precision.Exact
         _invertValues.value = false
+        _outputSortBy.value = OutputSortBy.VALUE
+        _outputSortOrder.value = OutputSortOrder.ASCENDING
+        _summaryFileLayout.value = SummaryFileLayout.ONE_FILE
         _themeMode.value = ThemeMode.SYSTEM
         _processingState.value = ProcessingState.IDLE
         _progress.value = 0f

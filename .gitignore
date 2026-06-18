@@ -21,4 +21,5 @@ node_modules/
 # Pico Signal Processor Specifics
 CsvDir/
 PSP_Output/
-*_PSP_Output/
+*_PSP_Output*/
+20260618-*/
