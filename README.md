@@ -42,9 +42,10 @@ Processing 10,000+ signal points or hundreds of files manually is slow. PSP uses
 
 PSP is designed for flexibility. While it excels at PicoScope data, it works with any CSV signal data that follows this simple schema:
 
-1. **Header Lines**: The app automatically skips the first **2 lines** (metadata/headers).
-2. **Data Columns**: Expects `[Index/Time, Value]`.
+1. **Header Lines**: The app automatically skips the first **2 lines** (channel names + units).
+2. **Data Columns**: Expects `[Time/Index, Channel A, Channel B, ...]`. Channel names are read from the first header line, so 2-, 3-, 4-, or more-channel exports are supported automatically.
 3. **File Scanning**: Recursively finds every `.csv` file in your selected input directory.
+4. **Per-Channel Output**: PSP writes separate summary and frequency files for each detected channel, for example `output_summary_Channel_A.csv`, `output_summary_Channel_B.csv`, `frequency_summary_Channel_A.csv`, and `frequency_summary_Channel_B.csv`.
 
 ---
 
