@@ -77,18 +77,18 @@ jobs:
           path: release-artifacts
           merge-multiple: true
 
-      - name: Generate Tag
-        id: tag
+      - name: Read package version
+        id: version
         run: |
-          TAG_NAME="v1.0.$(date +'%Y%m%d%H%M%S')"
-          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
-          echo "Generated Tag: $TAG_NAME"
+          VERSION=$(grep 'packageVersion' composeApp/build.gradle.kts | sed -E 's/.*packageVersion = "([^"]+)".*/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Package version: $VERSION"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.tag_name }}
-          name: Release ${{ steps.tag.outputs.tag_name }}
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
           files: |
             release-artifacts/**/*.dmg
             release-artifacts/**/*.msi
