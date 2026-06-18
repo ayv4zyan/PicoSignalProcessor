@@ -508,6 +508,9 @@ fun SettingsScreen(viewModel: MainViewModel) {
     val operation by viewModel.operation.collectAsState()
     val precision by viewModel.precision.collectAsState()
     val invertValues by viewModel.invertValues.collectAsState()
+    val outputSortBy by viewModel.outputSortBy.collectAsState()
+    val outputSortOrder by viewModel.outputSortOrder.collectAsState()
+    val summaryFileLayout by viewModel.summaryFileLayout.collectAsState()
     val suffix by viewModel.outputFolderSuffix.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
 
@@ -605,6 +608,76 @@ fun SettingsScreen(viewModel: MainViewModel) {
                 }
                 Text(
                     "Negates values in output and frequency summary files (multiplies each value by -1).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            HorizontalDivider()
+
+            // Summary file layout
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Summary File Layout", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = summaryFileLayout == SummaryFileLayout.ONE_FILE,
+                        onClick = { viewModel.setSummaryFileLayout(SummaryFileLayout.ONE_FILE) },
+                        label = { Text("One File") }
+                    )
+                    FilterChip(
+                        selected = summaryFileLayout == SummaryFileLayout.SEPARATE,
+                        onClick = { viewModel.setSummaryFileLayout(SummaryFileLayout.SEPARATE) },
+                        label = { Text("Separate") }
+                    )
+                    FilterChip(
+                        selected = summaryFileLayout == SummaryFileLayout.BOTH,
+                        onClick = { viewModel.setSummaryFileLayout(SummaryFileLayout.BOTH) },
+                        label = { Text("Both") }
+                    )
+                }
+                Text(
+                    "One file writes output_summary.csv and frequency_summary.csv. Separate writes per-channel files. Both writes all formats.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            HorizontalDivider()
+
+            // Output sort
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Frequency Summary Sort", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = outputSortBy == OutputSortBy.VALUE,
+                        onClick = { viewModel.setOutputSortBy(OutputSortBy.VALUE) },
+                        label = { Text("By Value") }
+                    )
+                    FilterChip(
+                        selected = outputSortBy == OutputSortBy.COUNT,
+                        onClick = { viewModel.setOutputSortBy(OutputSortBy.COUNT) },
+                        label = { Text("By Count") },
+                        enabled = summaryFileLayout != SummaryFileLayout.ONE_FILE
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = outputSortOrder == OutputSortOrder.ASCENDING,
+                        onClick = { viewModel.setOutputSortOrder(OutputSortOrder.ASCENDING) },
+                        label = { Text("Ascending") }
+                    )
+                    FilterChip(
+                        selected = outputSortOrder == OutputSortOrder.DESCENDING,
+                        onClick = { viewModel.setOutputSortOrder(OutputSortOrder.DESCENDING) },
+                        label = { Text("Descending") }
+                    )
+                }
+                Text(
+                    if (summaryFileLayout == SummaryFileLayout.ONE_FILE) {
+                        "Controls how the consolidated frequency summary is ordered by value. Count sorting is available in separate and both modes."
+                    } else {
+                        "Controls how frequency summary files are ordered. Choose the sort field and direction."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

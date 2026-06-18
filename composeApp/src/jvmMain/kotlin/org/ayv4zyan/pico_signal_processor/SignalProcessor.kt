@@ -10,6 +10,18 @@ enum class SignalOperation {
     MAX, MIN
 }
 
+enum class OutputSortBy {
+    VALUE, COUNT
+}
+
+enum class OutputSortOrder {
+    ASCENDING, DESCENDING
+}
+
+enum class SummaryFileLayout {
+    ONE_FILE, SEPARATE, BOTH
+}
+
 sealed class Precision {
     object Exact : Precision()
     data class Decimals(val places: Int) : Precision()
@@ -28,6 +40,9 @@ class SignalProcessor {
         operation: SignalOperation,
         precision: Precision,
         invertValues: Boolean,
+        outputSortBy: OutputSortBy,
+        outputSortOrder: OutputSortOrder,
+        summaryFileLayout: SummaryFileLayout,
         customOutputDirectory: File?,
         outputFolderSuffix: String,
         onProgress: (Int, Int) -> Unit,
@@ -105,54 +120,180 @@ class SignalProcessor {
         onLog("Detected channels: ${channelNames.joinToString(", ")}")
 
         onLog("Finished processing. Generating output CSVs...")
-        channelNames.forEach { channelName ->
-            val safeName = CsvSignalParser.sanitizeChannelFileName(channelName)
-            val outputFile = File(targetDir, "output_summary_$safeName.csv")
-            outputFile.bufferedWriter().use { writer ->
-                writer.write("FileName,Value\n")
-                summaryResults.forEach { result ->
-                    when {
-                        result.error != null -> onLog("Failed to process ${result.filename}: ${result.error}")
-                        else -> {
-                            val value = result.channelValues[channelName]
-                            if (value != null) {
-                                writer.write("${result.filename},$value\n")
-                            }
-                        }
-                    }
-                }
-            }
-            onLog("Output saved to: ${outputFile.absolutePath}")
+        val writeConsolidated = summaryFileLayout == SummaryFileLayout.ONE_FILE ||
+            summaryFileLayout == SummaryFileLayout.BOTH
+        val writeSeparate = summaryFileLayout == SummaryFileLayout.SEPARATE ||
+            summaryFileLayout == SummaryFileLayout.BOTH
 
-            onLog("Counting value frequencies for $channelName...")
-            val valueCounts = mutableMapOf<Double, Int>()
-            summaryResults.forEach { result ->
-                val value = result.channelValues[channelName]
-                if (value != null) {
-                    val roundedValue = when (precision) {
-                        is Precision.Exact -> value
-                        is Precision.Decimals -> {
-                            java.math.BigDecimal(value.toString())
-                                .setScale(precision.places, java.math.RoundingMode.HALF_UP)
-                                .toDouble()
-                        }
-                    }
-                    valueCounts[roundedValue] = valueCounts.getOrDefault(roundedValue, 0) + 1
-                }
-            }
+        if (writeConsolidated) {
+            writeConsolidatedOutputSummary(targetDir, channelNames, summaryResults, onLog)
+            writeConsolidatedFrequencySummary(
+                targetDir = targetDir,
+                channelNames = channelNames,
+                summaryResults = summaryResults,
+                precision = precision,
+                outputSortOrder = outputSortOrder,
+                onLog = onLog
+            )
+        }
 
-            val sortedCounts = valueCounts.entries.sortedBy { it.key }
-            val freqFile = File(targetDir, "frequency_summary_$safeName.csv")
-            freqFile.bufferedWriter().use { writer ->
-                writer.write("Value,Count\n")
-                sortedCounts.forEach { entry ->
-                    writer.write("${entry.key},${entry.value}\n")
-                }
+        if (writeSeparate) {
+            channelNames.forEach { channelName ->
+                writeSeparateChannelSummaries(
+                    targetDir = targetDir,
+                    channelName = channelName,
+                    summaryResults = summaryResults,
+                    precision = precision,
+                    outputSortBy = outputSortBy,
+                    outputSortOrder = outputSortOrder,
+                    onLog = onLog
+                )
             }
-            onLog("Frequency counts saved to: ${freqFile.absolutePath}")
         }
 
         return@withContext targetDir
+    }
+
+    private fun writeConsolidatedOutputSummary(
+        targetDir: File,
+        channelNames: List<String>,
+        summaryResults: List<ProcessingResult>,
+        onLog: (String) -> Unit
+    ) {
+        val outputFile = File(targetDir, "output_summary.csv")
+        outputFile.bufferedWriter().use { writer ->
+            writer.write("FileName,${channelNames.joinToString(",")}\n")
+            summaryResults.forEach { result ->
+                when {
+                    result.error != null -> onLog("Failed to process ${result.filename}: ${result.error}")
+                    else -> {
+                        val values = channelNames.map { channelName ->
+                            result.channelValues[channelName]?.toString() ?: ""
+                        }
+                        writer.write("${result.filename},${values.joinToString(",")}\n")
+                    }
+                }
+            }
+        }
+        onLog("Output saved to: ${outputFile.absolutePath}")
+    }
+
+    private fun writeConsolidatedFrequencySummary(
+        targetDir: File,
+        channelNames: List<String>,
+        summaryResults: List<ProcessingResult>,
+        precision: Precision,
+        outputSortOrder: OutputSortOrder,
+        onLog: (String) -> Unit
+    ) {
+        onLog("Counting value frequencies for consolidated summary...")
+        val countsByChannel = channelNames.associateWith { channelName ->
+            buildFrequencyCounts(summaryResults, channelName, precision)
+        }
+        val allValues = countsByChannel.values
+            .flatMap { it.keys }
+            .distinct()
+        val sortedValues = when (outputSortOrder) {
+            OutputSortOrder.ASCENDING -> allValues.sorted()
+            OutputSortOrder.DESCENDING -> allValues.sortedDescending()
+        }
+
+        val freqFile = File(targetDir, "frequency_summary.csv")
+        freqFile.bufferedWriter().use { writer ->
+            writer.write("Value,${channelNames.joinToString(",")}\n")
+            sortedValues.forEach { value ->
+                val counts = channelNames.map { channelName ->
+                    countsByChannel[channelName]?.getOrDefault(value, 0) ?: 0
+                }
+                writer.write("$value,${counts.joinToString(",")}\n")
+            }
+        }
+        onLog("Frequency counts saved to: ${freqFile.absolutePath}")
+    }
+
+    private fun writeSeparateChannelSummaries(
+        targetDir: File,
+        channelName: String,
+        summaryResults: List<ProcessingResult>,
+        precision: Precision,
+        outputSortBy: OutputSortBy,
+        outputSortOrder: OutputSortOrder,
+        onLog: (String) -> Unit
+    ) {
+        val safeName = CsvSignalParser.sanitizeChannelFileName(channelName)
+        val outputFile = File(targetDir, "output_summary_$safeName.csv")
+        outputFile.bufferedWriter().use { writer ->
+            writer.write("FileName,Value\n")
+            summaryResults.forEach { result ->
+                when {
+                    result.error != null -> onLog("Failed to process ${result.filename}: ${result.error}")
+                    else -> {
+                        val value = result.channelValues[channelName]
+                        if (value != null) {
+                            writer.write("${result.filename},$value\n")
+                        }
+                    }
+                }
+            }
+        }
+        onLog("Output saved to: ${outputFile.absolutePath}")
+
+        onLog("Counting value frequencies for $channelName...")
+        val valueCounts = buildFrequencyCounts(summaryResults, channelName, precision)
+        val sortedCounts = sortFrequencyEntries(valueCounts.entries, outputSortBy, outputSortOrder)
+        val freqFile = File(targetDir, "frequency_summary_$safeName.csv")
+        freqFile.bufferedWriter().use { writer ->
+            writer.write("Value,Count\n")
+            sortedCounts.forEach { entry ->
+                writer.write("${entry.key},${entry.value}\n")
+            }
+        }
+        onLog("Frequency counts saved to: ${freqFile.absolutePath}")
+    }
+
+    private fun buildFrequencyCounts(
+        summaryResults: List<ProcessingResult>,
+        channelName: String,
+        precision: Precision
+    ): MutableMap<Double, Int> {
+        val valueCounts = mutableMapOf<Double, Int>()
+        summaryResults.forEach { result ->
+            val value = result.channelValues[channelName]
+            if (value != null) {
+                val roundedValue = roundValue(value, precision)
+                valueCounts[roundedValue] = valueCounts.getOrDefault(roundedValue, 0) + 1
+            }
+        }
+        return valueCounts
+    }
+
+    private fun roundValue(value: Double, precision: Precision): Double = when (precision) {
+        is Precision.Exact -> value
+        is Precision.Decimals -> {
+            java.math.BigDecimal(value.toString())
+                .setScale(precision.places, java.math.RoundingMode.HALF_UP)
+                .toDouble()
+        }
+    }
+
+    internal fun sortFrequencyEntries(
+        entries: Set<Map.Entry<Double, Int>>,
+        sortBy: OutputSortBy,
+        sortOrder: OutputSortOrder
+    ): List<Map.Entry<Double, Int>> {
+        val comparator = when (sortBy) {
+            OutputSortBy.VALUE -> when (sortOrder) {
+                OutputSortOrder.ASCENDING -> compareBy<Map.Entry<Double, Int>> { it.key }
+                OutputSortOrder.DESCENDING -> compareByDescending<Map.Entry<Double, Int>> { it.key }
+            }
+            OutputSortBy.COUNT -> when (sortOrder) {
+                OutputSortOrder.ASCENDING ->
+                    compareBy<Map.Entry<Double, Int>> { it.value }.thenBy { it.key }
+                OutputSortOrder.DESCENDING ->
+                    compareByDescending<Map.Entry<Double, Int>> { it.value }.thenBy { it.key }
+            }
+        }
+        return entries.sortedWith(comparator)
     }
 
     internal fun processSingleFile(file: File, operation: SignalOperation): ProcessingResult {
