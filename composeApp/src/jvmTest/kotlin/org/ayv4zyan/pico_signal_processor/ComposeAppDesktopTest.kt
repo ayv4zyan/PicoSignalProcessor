@@ -139,6 +139,7 @@ class ComposeAppDesktopTest {
             directory = inputDir,
             operation = SignalOperation.MAX,
             precision = Precision.Exact,
+            invertValues = false,
             customOutputDirectory = outputDir,
             outputFolderSuffix = "PSP_Output",
             onProgress = { _, _ -> },
@@ -163,6 +164,98 @@ class ComposeAppDesktopTest {
         assertEquals("sample_b.csv,4.0", summaryALines[2])
         assertEquals("sample_a.csv,10.0", summaryBLines[1])
         assertEquals("sample_b.csv,9.0", summaryBLines[2])
+    }
+
+    @Test
+    fun processDirectory_invertValues_negatesOutputAndFrequencySummaries() = runBlocking {
+        val inputDir = createTempDirectory("psp-input-invert-").toFile()
+        val outputDir = createTempDirectory("psp-output-invert-").toFile()
+
+        createCsvInDir(
+            dir = inputDir,
+            name = "sample_a.csv",
+            header = "Time,Channel A,Channel B",
+            units = "(ns),(mV),(mV)",
+            rows = listOf(
+                "-1.0,1.0,10.0",
+                "0.0,5.0,2.0"
+            )
+        )
+        createCsvInDir(
+            dir = inputDir,
+            name = "sample_b.csv",
+            header = "Time,Channel A,Channel B",
+            units = "(ns),(mV),(mV)",
+            rows = listOf(
+                "-1.0,2.0,7.0",
+                "0.0,4.0,9.0"
+            )
+        )
+
+        val resultDir = SignalProcessor().processDirectory(
+            directory = inputDir,
+            operation = SignalOperation.MAX,
+            precision = Precision.Exact,
+            invertValues = true,
+            customOutputDirectory = outputDir,
+            outputFolderSuffix = "PSP_Output",
+            onProgress = { _, _ -> },
+            onLog = {}
+        )
+
+        assertNotNull(resultDir)
+
+        val summaryA = File(resultDir, "output_summary_Channel_A.csv").readLines()
+        val summaryB = File(resultDir, "output_summary_Channel_B.csv").readLines()
+        val freqA = File(resultDir, "frequency_summary_Channel_A.csv").readLines()
+        val freqB = File(resultDir, "frequency_summary_Channel_B.csv").readLines()
+
+        assertEquals("sample_a.csv,-5.0", summaryA[1])
+        assertEquals("sample_b.csv,-4.0", summaryA[2])
+        assertEquals("sample_a.csv,-10.0", summaryB[1])
+        assertEquals("sample_b.csv,-9.0", summaryB[2])
+
+        assertEquals("Value,Count", freqA.first())
+        assertEquals("-5.0,1", freqA[1])
+        assertEquals("-4.0,1", freqA[2])
+        assertEquals("-10.0,1", freqB[1])
+        assertEquals("-9.0,1", freqB[2])
+    }
+
+    @Test
+    fun processDirectory_invertValues_disabled_preservesOriginalValues() = runBlocking {
+        val inputDir = createTempDirectory("psp-input-no-invert-").toFile()
+        val outputDir = createTempDirectory("psp-output-no-invert-").toFile()
+
+        createCsvInDir(
+            dir = inputDir,
+            name = "sample.csv",
+            header = "Time,Channel A",
+            units = "(ms),(V)",
+            rows = listOf(
+                "0.0,-3.0",
+                "1.0,2.0"
+            )
+        )
+
+        val resultDir = SignalProcessor().processDirectory(
+            directory = inputDir,
+            operation = SignalOperation.MIN,
+            precision = Precision.Exact,
+            invertValues = false,
+            customOutputDirectory = outputDir,
+            outputFolderSuffix = "PSP_Output",
+            onProgress = { _, _ -> },
+            onLog = {}
+        )
+
+        assertNotNull(resultDir)
+
+        val summary = File(resultDir, "output_summary_Channel_A.csv").readLines()
+        val freq = File(resultDir, "frequency_summary_Channel_A.csv").readLines()
+
+        assertEquals("sample.csv,-3.0", summary[1])
+        assertEquals("-3.0,1", freq[1])
     }
 
     private fun createCsv(

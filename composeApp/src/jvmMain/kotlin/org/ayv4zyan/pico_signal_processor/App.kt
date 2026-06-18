@@ -507,6 +507,7 @@ fun HomeScreen(viewModel: MainViewModel, window: ComposeWindow?) {
 fun SettingsScreen(viewModel: MainViewModel) {
     val operation by viewModel.operation.collectAsState()
     val precision by viewModel.precision.collectAsState()
+    val invertValues by viewModel.invertValues.collectAsState()
     val suffix by viewModel.outputFolderSuffix.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
 
@@ -582,6 +583,31 @@ fun SettingsScreen(viewModel: MainViewModel) {
                 }
                 Text("Exact match doesn't round values. Decimals will round to the specified precision.", 
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            HorizontalDivider()
+
+            // Invert values
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Invert Values", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Switch(
+                        checked = invertValues,
+                        onCheckedChange = { viewModel.setInvertValues(it) }
+                    )
+                    Text(
+                        if (invertValues) "Enabled" else "Disabled",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Text(
+                    "Negates values in output and frequency summary files (multiplies each value by -1).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             HorizontalDivider()

@@ -24,6 +24,7 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
     private val KEY_OP = "operation"
     private val KEY_PRECISION_TYPE = "precision_type" // 0 = Exact, 1 = Decimals
     private val KEY_PRECISION_VAL = "precision_val"
+    private val KEY_INVERT_VALUES = "invert_values"
     private val KEY_THEME = "theme_mode"
 
     private val _currentScreen = MutableStateFlow(Screen.HOME)
@@ -52,6 +53,9 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
 
     private val _precision = MutableStateFlow<Precision>(Precision.Exact)
     val precision = _precision.asStateFlow()
+
+    private val _invertValues = MutableStateFlow(false)
+    val invertValues = _invertValues.asStateFlow()
 
     private val _processingState = MutableStateFlow(ProcessingState.IDLE)
     val processingState = _processingState.asStateFlow()
@@ -84,6 +88,8 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
             val places = prefs.getInt(KEY_PRECISION_VAL, 2)
             Precision.Decimals(places)
         }
+
+        _invertValues.value = prefs.getBoolean(KEY_INVERT_VALUES, false)
 
         val themeName = prefs.get(KEY_THEME, ThemeMode.SYSTEM.name)
         _themeMode.value = try { ThemeMode.valueOf(themeName) } catch (e: Exception) { ThemeMode.SYSTEM }
@@ -149,6 +155,13 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
         log("Precision set to: $label")
     }
 
+    fun setInvertValues(enabled: Boolean) {
+        _invertValues.value = enabled
+        prefs.putBoolean(KEY_INVERT_VALUES, enabled)
+        _processingState.value = ProcessingState.IDLE
+        log("Invert values ${if (enabled) "enabled" else "disabled"}")
+    }
+
     fun startProcessing() {
         val dir = _selectedDirectory.value
         if (dir == null) {
@@ -166,6 +179,7 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
                 directory = dir,
                 operation = _operation.value,
                 precision = _precision.value,
+                invertValues = _invertValues.value,
                 customOutputDirectory = _customOutputDirectory.value,
                 outputFolderSuffix = _outputFolderSuffix.value,
                 onProgress = { current, total ->
@@ -190,6 +204,7 @@ class MainViewModel(private val processor: SignalProcessor = SignalProcessor()) 
         _outputFolderSuffix.value = "PSP_Output"
         _operation.value = SignalOperation.MAX
         _precision.value = Precision.Exact
+        _invertValues.value = false
         _themeMode.value = ThemeMode.SYSTEM
         _processingState.value = ProcessingState.IDLE
         _progress.value = 0f

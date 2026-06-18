@@ -27,6 +27,7 @@ class SignalProcessor {
         directory: File,
         operation: SignalOperation,
         precision: Precision,
+        invertValues: Boolean,
         customOutputDirectory: File?,
         outputFolderSuffix: String,
         onProgress: (Int, Int) -> Unit,
@@ -79,7 +80,19 @@ class SignalProcessor {
             }
         }.awaitAll()
 
-        val channelNames = results
+        val summaryResults = if (invertValues) {
+            results.map { result ->
+                result.copy(
+                    channelValues = result.channelValues.mapValues { (_, value) ->
+                        value?.let { -it }
+                    }
+                )
+            }
+        } else {
+            results
+        }
+
+        val channelNames = summaryResults
             .flatMap { it.channelValues.keys }
             .distinct()
             .sorted()
@@ -97,7 +110,7 @@ class SignalProcessor {
             val outputFile = File(targetDir, "output_summary_$safeName.csv")
             outputFile.bufferedWriter().use { writer ->
                 writer.write("FileName,Value\n")
-                results.forEach { result ->
+                summaryResults.forEach { result ->
                     when {
                         result.error != null -> onLog("Failed to process ${result.filename}: ${result.error}")
                         else -> {
@@ -113,7 +126,7 @@ class SignalProcessor {
 
             onLog("Counting value frequencies for $channelName...")
             val valueCounts = mutableMapOf<Double, Int>()
-            results.forEach { result ->
+            summaryResults.forEach { result ->
                 val value = result.channelValues[channelName]
                 if (value != null) {
                     val roundedValue = when (precision) {
