@@ -40,7 +40,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "PicoSignalProcessor"
-            packageVersion = "1.1.0"
+            packageVersion = "1.2.0"
             description = "Pico Signal Processor"
             vendor = "ayv4zyan"
             copyright = "© 2026 Pico Signal Processor"
