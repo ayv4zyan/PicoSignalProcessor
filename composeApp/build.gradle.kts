@@ -1,4 +1,35 @@
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.TaskAction
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+
+abstract class GenerateAppVersionTask : DefaultTask() {
+    @get:Input
+    abstract val appVersion: Property<String>
+
+    @get:OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun generate() {
+        val file = outputDirectory.file("org/ayv4zyan/pico_signal_processor/AppVersion.kt").get().asFile
+        file.parentFile.mkdirs()
+        file.writeText(
+            """
+            package org.ayv4zyan.pico_signal_processor
+
+            object AppVersion {
+                const val VERSION: String = "${appVersion.get()}"
+            }
+            """.trimIndent() + "\n"
+        )
+    }
+}
+
+val appVersion = libs.versions.appVersion.get()
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -7,10 +38,18 @@ plugins {
     alias(libs.plugins.composeHotReload)
 }
 
+val generateAppVersion = tasks.register<GenerateAppVersionTask>("generateAppVersion") {
+    appVersion.set(libs.versions.appVersion)
+    outputDirectory.set(layout.buildDirectory.dir("generated/source/appVersion/main/kotlin"))
+}
+
 kotlin {
     jvm()
-    
+
     sourceSets {
+        jvmMain {
+            kotlin.srcDir(layout.buildDirectory.dir("generated/source/appVersion/main/kotlin"))
+        }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
@@ -40,7 +79,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "PicoSignalProcessor"
-            packageVersion = "1.3.0"
+            packageVersion = appVersion
             description = "Pico Signal Processor"
             vendor = "ayv4zyan"
             copyright = "© 2026 Pico Signal Processor"
@@ -59,4 +98,8 @@ compose.desktop {
             }
         }
     }
+}
+
+tasks.named("compileKotlinJvm") {
+    dependsOn(generateAppVersion)
 }
